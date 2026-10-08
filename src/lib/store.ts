@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { derive, type CandidateDetails, type Offer, type OfferInput } from "./offer";
-import { createNotionOffer } from "./notion";
+import { createNotionOffer, notionConnected, pageIdFromUrl, queryNotionOffers } from "./notion";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const OFFERS_FILE = path.join(DATA_DIR, "offers.json");
@@ -23,9 +23,34 @@ async function writeJson(file: string, value: unknown) {
   await fs.writeFile(file, JSON.stringify(value, null, 2));
 }
 
+const newestFirst = (a: Offer, b: Offer) => b.created_at.localeCompare(a.created_at);
+
+// When Notion is connected it is the source of truth: every row in the Offers
+// database is shown with its current values. The local file only adds what
+// Notion doesn't hold here (candidate details) and offers never sent to Notion.
+export async function loadOffers(): Promise<{ offers: Offer[]; notionError: string | null }> {
+  const local = await readJson<Offer[]>(OFFERS_FILE, []);
+  if (!(await notionConnected())) return { offers: local.sort(newestFirst), notionError: null };
+
+  let rows;
+  try {
+    rows = await queryNotionOffers();
+  } catch (e) {
+    return { offers: local.sort(newestFirst), notionError: e instanceof Error ? e.message : String(e) };
+  }
+  if (!rows) return { offers: local.sort(newestFirst), notionError: null };
+
+  const byPage = new Map(local.map((o) => [pageIdFromUrl(o.notion_url), o]));
+  const merged: Offer[] = rows.map(({ notion_page_id, ...row }) => {
+    const mine = byPage.get(notion_page_id);
+    return { ...row, id: mine?.id ?? notion_page_id, candidate_details: mine?.candidate_details ?? null };
+  });
+  const unsynced = local.filter((o) => !o.notion_url);
+  return { offers: [...merged, ...unsynced].sort(newestFirst), notionError: null };
+}
+
 export async function listOffers(): Promise<Offer[]> {
-  const offers = await readJson<Offer[]>(OFFERS_FILE, []);
-  return offers.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return (await loadOffers()).offers;
 }
 
 export async function getOffer(id: string): Promise<Offer | undefined> {
@@ -56,8 +81,14 @@ export async function createOffer(input: OfferInput): Promise<{ offer: Offer; no
 
 export async function saveCandidateDetails(id: string, details: CandidateDetails) {
   const offers = await readJson<Offer[]>(OFFERS_FILE, []);
-  const offer = offers.find((o) => o.id === id);
-  if (!offer) throw new Error("Offer not found");
+  let offer = offers.find((o) => o.id === id);
+  if (!offer) {
+    // A row created directly in Notion: keep a local copy to hold the details.
+    const fromNotion = await getOffer(id);
+    if (!fromNotion) throw new Error("Offer not found");
+    offer = { ...fromNotion };
+    offers.push(offer);
+  }
   offer.candidate_details = details;
   await writeJson(OFFERS_FILE, offers);
 }

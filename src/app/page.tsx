@@ -2,7 +2,7 @@ import Link from "next/link";
 import { disconnectNotionAction } from "@/app/actions";
 import { oauthConfigured, readOAuth } from "@/lib/notion";
 import { formatDate, formatMoney } from "@/lib/offer";
-import { listOffers } from "@/lib/store";
+import { loadOffers } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +12,18 @@ export default async function OffersPage({
   searchParams: Promise<{ notion?: string; notionError?: string }>;
 }) {
   const sp = await searchParams;
-  const offers = await listOffers();
+  const { offers, notionError } = await loadOffers();
   const oauth = await readOAuth();
   const viaToken = Boolean(process.env.NOTION_TOKEN);
   return (
     <>
       {sp.notion === "connected" && <div className="notice ok">Notion is connected. New offers will be written to the Offers database.</div>}
       {sp.notionError && <div className="notice">Connecting Notion failed: {sp.notionError}</div>}
+      {notionError && <div className="notice">Couldn't read offers from Notion, showing the local copy: {notionError}</div>}
       <div className="spread">
         <div>
           <h1>Offers</h1>
-          <p className="sub">Every offer proposed from this app. Approvals and later steps happen on the Notion row.</p>
+          <p className="sub">Every offer in the Notion Offers database, with its current values. Approvals and later steps happen on the Notion row.</p>
         </div>
         <Link className="btn" href="/offers/new">New offer</Link>
       </div>
