@@ -1,23 +1,34 @@
 import { removeTemplateAction, saveTemplateAction } from "@/app/actions";
-import { TEMPLATE_SLOTS, listTemplates } from "@/lib/store";
+import { TEMPLATE_SLOTS, loadTemplates } from "@/lib/store";
 import { TOKENS } from "@/lib/templating";
 
 export const dynamic = "force-dynamic";
 
-export default async function TemplatesPage() {
-  const templates = await listTemplates();
+export default async function TemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string; notionError?: string; slot?: string }>;
+}) {
+  const sp = await searchParams;
+  const { templates, notionError } = await loadTemplates();
+  const savedLabel = TEMPLATE_SLOTS.find((s) => s.key === sp.slot)?.label;
   return (
     <>
+      {sp.saved === "notion" && <div className="notice ok">Saved {savedLabel}. The link and signatory are updated in the Notion Templates database.</div>}
+      {sp.saved === "local" && <div className="notice">Saved {savedLabel} on this computer only. Connect Notion on the Offers page to sync it.</div>}
+      {sp.notionError && <div className="notice">Saved on this computer, but updating Notion failed: {sp.notionError}</div>}
+      {notionError && <div className="notice">Couldn&apos;t read the Notion Templates database, showing the local copy: {notionError}</div>}
       <h1>Templates</h1>
       <p className="sub">
-        Upload the approved .docx for each slot, or paste its Google Docs link for the Claude routines. Placeholders use{" "}
+        Upload the approved .docx for each slot (stays on this computer, used for the downloads here) and paste its Google Docs link
+        (used by the Claude routines). The link and MD signatory are kept in the Notion Templates database, so edit them here or there. Placeholders use{" "}
         <code>{"{{field}}"}</code>; the list of fields is at the bottom of the page.
       </p>
 
       {TEMPLATE_SLOTS.map((slot) => {
         const t = templates[slot.key];
         return (
-          <section className="card" key={slot.key}>
+          <section className="card" key={slot.key} id={slot.key}>
             <div className="spread" style={{ marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}>{slot.label}</h2>
               {t?.filename || t?.link ? <span className="pill ok">Ready</span> : <span className="pill muted">Empty</span>}

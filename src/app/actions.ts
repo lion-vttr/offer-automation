@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { disconnect as disconnectNotion } from "@/lib/notion";
 import { validate, type CandidateDetails, type Errors, type OfferInput } from "@/lib/offer";
 import {
@@ -67,15 +68,22 @@ export async function saveTemplateAction(formData: FormData) {
     await fs.writeFile(path.join(TEMPLATE_DIR, filename), Buffer.from(await file.arrayBuffer()));
   }
 
-  await saveTemplate({
-    key,
-    filename,
-    link: String(formData.get("link") ?? "").trim() || null,
-    md_signatory: String(formData.get("md_signatory") ?? "").trim(),
-    md_signatory_email: String(formData.get("md_signatory_email") ?? "").trim(),
-    updated_at: new Date().toISOString(),
-  });
+  let result: string;
+  try {
+    const synced = await saveTemplate({
+      key,
+      filename,
+      link: String(formData.get("link") ?? "").trim() || null,
+      md_signatory: String(formData.get("md_signatory") ?? "").trim(),
+      md_signatory_email: String(formData.get("md_signatory_email") ?? "").trim(),
+      updated_at: new Date().toISOString(),
+    });
+    result = synced ? "saved=notion" : "saved=local";
+  } catch (e) {
+    result = `notionError=${encodeURIComponent((e instanceof Error ? e.message : String(e)).slice(0, 300))}`;
+  }
   revalidatePath("/templates");
+  redirect(`/templates?${result}&slot=${encodeURIComponent(key)}#${encodeURIComponent(key)}`);
 }
 
 export async function removeTemplateAction(formData: FormData) {

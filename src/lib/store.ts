@@ -5,7 +5,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { derive, type CandidateDetails, type Offer, type OfferInput } from "./offer";
-import { createNotionOffer, notionConnected, pageIdFromUrl, queryNotionOffers } from "./notion";
+import {
+  createNotionOffer,
+  notionConnected,
+  pageIdFromUrl,
+  queryNotionOffers,
+  queryNotionTemplates,
+  upsertNotionTemplate,
+} from "./notion";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const OFFERS_FILE = path.join(DATA_DIR, "offers.json");
@@ -130,18 +137,63 @@ export const TEMPLATE_SLOTS: TemplateSlot[] = (["offer_letter", "contract"] as c
   ),
 );
 
-export async function listTemplates(): Promise<Record<string, TemplateEntry>> {
-  return readJson<Record<string, TemplateEntry>>(TEMPLATES_FILE, {});
+const readLocalTemplates = () => readJson<Record<string, TemplateEntry>>(TEMPLATES_FILE, {});
+
+// The uploaded .docx lives on this computer. The link and MD signatory live in
+// the Notion Templates database when Notion is connected, so edits there win.
+export async function loadTemplates(): Promise<{ templates: Record<string, TemplateEntry>; notionError: string | null }> {
+  const local = await readLocalTemplates();
+  let rows;
+  try {
+    rows = await queryNotionTemplates();
+  } catch (e) {
+    return { templates: local, notionError: e instanceof Error ? e.message : String(e) };
+  }
+  if (!rows || !(await notionConnected())) return { templates: local, notionError: null };
+
+  const merged: Record<string, TemplateEntry> = {};
+  for (const slot of TEMPLATE_SLOTS) {
+    const mine = local[slot.key];
+    const row = rows.find((r) => r.kind === slot.kind && r.legal_entity === slot.legal_entity && r.contract_type === slot.contract_type);
+    if (!mine && !row) continue;
+    merged[slot.key] = {
+      key: slot.key,
+      filename: mine?.filename ?? null,
+      link: row ? row.link : (mine?.link ?? null),
+      md_signatory: row ? row.md_signatory : (mine?.md_signatory ?? ""),
+      md_signatory_email: row ? row.md_signatory_email : (mine?.md_signatory_email ?? ""),
+      updated_at: mine?.updated_at ?? "",
+    };
+  }
+  return { templates: merged, notionError: null };
 }
 
-export async function saveTemplate(entry: TemplateEntry) {
-  const all = await listTemplates();
+export async function listTemplates(): Promise<Record<string, TemplateEntry>> {
+  return (await loadTemplates()).templates;
+}
+
+// Saves locally, then writes the link and signatory to the Notion Templates row.
+// Returns false when Notion isn't connected.
+export async function saveTemplate(entry: TemplateEntry): Promise<boolean> {
+  const all = await readLocalTemplates();
   all[entry.key] = entry;
   await writeJson(TEMPLATES_FILE, all);
+  const slot = TEMPLATE_SLOTS.find((s) => s.key === entry.key)!;
+  return upsertNotionTemplate(
+    {
+      kind: slot.kind,
+      legal_entity: slot.legal_entity,
+      contract_type: slot.contract_type,
+      link: entry.link,
+      md_signatory: entry.md_signatory,
+      md_signatory_email: entry.md_signatory_email,
+    },
+    slot.label,
+  );
 }
 
 export async function removeTemplateFile(key: string) {
-  const all = await listTemplates();
+  const all = await readLocalTemplates();
   const entry = all[key];
   if (!entry) return;
   if (entry.filename) await fs.rm(path.join(TEMPLATE_DIR, entry.filename), { force: true });

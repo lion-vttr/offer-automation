@@ -36,9 +36,10 @@ Without keys the app uses sample Ashby candidates and saves offers to
 ## Templates
 
 `/templates` has one slot per document × entity × contract type. Each slot takes an
-uploaded .docx (used by the web app) and/or a Google Docs link (to copy into
-the Notion Templates database for the routines), plus the MD signatory for
-contracts. Placeholders are written `{{field}}`; the page lists every field.
+uploaded .docx (used by the web app, stays on this computer) and a Google Docs
+link (used by the routines), plus the MD signatory for contracts. The link and
+signatory are stored in the Notion Templates database; saving here updates
+Notion, and edits made in Notion show up here. Placeholders are written `{{field}}`; the page lists every field.
 Uploaded files are stored in `templates/` and are not committed.
 
 ## Notion

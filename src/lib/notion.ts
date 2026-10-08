@@ -215,3 +215,89 @@ export async function queryNotionOffers() {
   } while (cursor);
   return pages.map(offerFromNotion);
 }
+
+// ---- Templates database --------------------------------------------------
+
+export interface NotionTemplate {
+  page_id: string;
+  kind: "offer_letter" | "contract";
+  legal_entity: string;
+  contract_type: string;
+  link: string | null;
+  md_signatory: string;
+  md_signatory_email: string;
+}
+
+const KIND_LABEL = { offer_letter: "Offer letter", contract: "Contract" } as const;
+
+type TemplatePage = { id: string; properties: Record<string, Prop & { url?: string | null }> };
+
+function headers(token: string) {
+  return { Authorization: `Bearer ${token}`, "Notion-Version": NOTION_VERSION, "Content-Type": "application/json" };
+}
+
+export async function queryNotionTemplates(): Promise<NotionTemplate[] | null> {
+  const databaseId = process.env.NOTION_TEMPLATES_DATABASE_ID;
+  if (!databaseId) return null;
+  const res = await notionFetch((token) =>
+    fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+      method: "POST",
+      headers: headers(token),
+      body: JSON.stringify({ page_size: 100 }),
+      cache: "no-store",
+    }),
+  );
+  if (!res) return null;
+  if (!res.ok) throw new Error(`Notion ${res.status}: ${await res.text()}`);
+  const { results } = (await res.json()) as { results: TemplatePage[] };
+  return results.flatMap((page) => {
+    const p = page.properties;
+    const kind = sel(p["Kind"]) === "Contract" ? "contract" : sel(p["Kind"]) === "Offer letter" ? "offer_letter" : null;
+    if (!kind) return [];
+    return [{
+      page_id: page.id,
+      kind,
+      legal_entity: sel(p["Legal entity"]),
+      contract_type: sel(p["Contract type"]),
+      link: p["Template link"]?.url ?? null,
+      md_signatory: plain(p["MD signatory"]),
+      md_signatory_email: p["MD signatory email"]?.email ?? "",
+    }];
+  });
+}
+
+// Creates or updates the one Templates row for this document, entity and contract type.
+export async function upsertNotionTemplate(t: Omit<NotionTemplate, "page_id">, label: string): Promise<boolean> {
+  const databaseId = process.env.NOTION_TEMPLATES_DATABASE_ID;
+  if (!databaseId || !(await notionConnected())) return false;
+  const existing = (await queryNotionTemplates())?.find(
+    (r) => r.kind === t.kind && r.legal_entity === t.legal_entity && r.contract_type === t.contract_type,
+  );
+  const properties = {
+    Name: { title: [{ text: { content: label } }] },
+    Kind: { select: { name: KIND_LABEL[t.kind] } },
+    "Legal entity": { select: { name: t.legal_entity } },
+    "Contract type": { select: { name: t.contract_type } },
+    "Template link": { url: t.link || null },
+    "MD signatory": text(t.md_signatory),
+    "MD signatory email": { email: t.md_signatory_email || null },
+    Active: { checkbox: Boolean(t.link) },
+  };
+  const res = await notionFetch((token) =>
+    existing
+      ? fetch(`https://api.notion.com/v1/pages/${existing.page_id}`, {
+          method: "PATCH",
+          headers: headers(token),
+          body: JSON.stringify({ properties }),
+        })
+      : fetch("https://api.notion.com/v1/pages", {
+          method: "POST",
+          headers: headers(token),
+          body: JSON.stringify({ parent: { database_id: databaseId }, properties }),
+        }),
+  );
+  if (!res) return false;
+  if (res.status === 404) throw new Error("Notion can't see the Templates database. Reconnect Notion and select the \"Offer to Contract MVP\" page.");
+  if (!res.ok) throw new Error(`Notion ${res.status}: ${await res.text()}`);
+  return true;
+}
