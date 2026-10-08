@@ -1,0 +1,57 @@
+# Offer to Contract (MVP, flows 1–5)
+
+Recruiter proposes, founders approve, Claude drafts the offer, reads the
+acceptance, and generates the contract. Flow page:
+https://claude.ai/artifact/UJEQprBSUssZHb11hhCMUG
+
+| Flow | Where it runs |
+|---|---|
+| 1 · Propose | This web app: `/offers/new` writes the Offers row (Pending approval) |
+| 2 · Approve | Claude routine [`routines/2-approve.md`](routines/2-approve.md): Slack post, Noah + Sauraj decide on the Notion row |
+| 3 · Offer out | Claude routine [`routines/3-offer-out.md`](routines/3-offer-out.md): offer letter + Gmail draft, Jerry sends |
+| 4 · Acceptance | Claude routine [`routines/4-acceptance.md`](routines/4-acceptance.md): reads the reply, fills Candidate Details |
+| 5 · Contract | Claude routine [`routines/5-contract.md`](routines/5-contract.md): fills the contract; Jerry sends it via DocuSign for now |
+
+The web app can also fill uploaded .docx templates locally (offer letter and
+contract) for any offer, so the documents can be checked before the routines
+are switched on.
+
+## Run it
+
+```bash
+npm install
+cp .env.example .env.local   # optional, see below
+npm run dev                  # http://localhost:3000
+npm test
+```
+
+Without keys the app uses sample Ashby candidates and saves offers to
+`.data/offers.json`. With keys in `.env.local`:
+
+- `ASHBY_API_KEY`: real candidate search and prefill.
+- `NOTION_TOKEN` + `NOTION_OFFERS_DATABASE_ID`: each submitted offer is also
+  created in the Notion Offers database. Share the "Offer to Contract MVP" page
+  with the integration.
+
+## Templates
+
+`/templates` has one slot per document × entity × contract type. Each slot takes an
+uploaded .docx (used by the web app) and/or a Google Docs link (to copy into
+the Notion Templates database for the routines), plus the MD signatory for
+contracts. Placeholders are written `{{field}}`; the page lists every field.
+Uploaded files are stored in `templates/` and are not committed.
+
+## Notion
+
+Under the private page "Offer to Contract MVP":
+https://app.notion.com/p/3f35be1f3b49815188f3dddd614fe179
+
+- **Offers**: one row per offer; the form fields, both approvals, status, links.
+- **Candidate Details**: filled from the acceptance reply. Restrict to Talent and Legal.
+- **Templates**: template links and MD signatory per entity and contract type.
+
+## Not yet
+
+Ashby and Notion credentials, Gmail connected as Jerry, DocuSign API, filing the
+signed contract, Ashby to Hired, onboarding handover (the "After the MVP" list on
+the flow page).
