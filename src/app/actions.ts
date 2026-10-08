@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
+import { disconnect as disconnectNotion } from "@/lib/notion";
 import { validate, type CandidateDetails, type Errors, type OfferInput } from "@/lib/offer";
 import {
   TEMPLATE_DIR,
@@ -80,4 +81,9 @@ export async function saveTemplateAction(formData: FormData) {
 export async function removeTemplateAction(formData: FormData) {
   await removeTemplateFile(String(formData.get("key")));
   revalidatePath("/templates");
+}
+
+export async function disconnectNotionAction() {
+  await disconnectNotion();
+  revalidatePath("/");
 }

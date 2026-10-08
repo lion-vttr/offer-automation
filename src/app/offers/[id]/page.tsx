@@ -32,7 +32,7 @@ export default async function OfferPage({
     <>
       {sp.created && (
         <div className="notice ok">
-          Offer submitted. {offer.notion_url ? "The row is in Notion." : "Saved locally; Notion is not connected yet (no NOTION_TOKEN)."}
+          Offer submitted. {offer.notion_url ? "The row is in Notion." : "Saved locally; Notion is not connected yet (see the Offers page)."}
         </div>
       )}
       {sp.notionError && <div className="notice">Saved locally, but writing to Notion failed: {sp.notionError}</div>}

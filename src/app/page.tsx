@@ -1,13 +1,24 @@
 import Link from "next/link";
+import { disconnectNotionAction } from "@/app/actions";
+import { oauthConfigured, readOAuth } from "@/lib/notion";
 import { formatDate, formatMoney } from "@/lib/offer";
 import { listOffers } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export default async function OffersPage() {
+export default async function OffersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notion?: string; notionError?: string }>;
+}) {
+  const sp = await searchParams;
   const offers = await listOffers();
+  const oauth = await readOAuth();
+  const viaToken = Boolean(process.env.NOTION_TOKEN);
   return (
     <>
+      {sp.notion === "connected" && <div className="notice ok">Notion is connected. New offers will be written to the Offers database.</div>}
+      {sp.notionError && <div className="notice">Connecting Notion failed: {sp.notionError}</div>}
       <div className="spread">
         <div>
           <h1>Offers</h1>
@@ -15,6 +26,30 @@ export default async function OffersPage() {
         </div>
         <Link className="btn" href="/offers/new">New offer</Link>
       </div>
+      <section className="card">
+        <div className="spread">
+          <div>
+            <h2 style={{ margin: 0 }}>Notion</h2>
+            <p className="sub" style={{ margin: 0 }}>
+              {viaToken
+                ? "Connected with NOTION_TOKEN."
+                : oauth
+                  ? `Connected${oauth.workspace_name ? ` to ${oauth.workspace_name}` : ""}. New offers are written to the Offers database.`
+                  : oauthConfigured()
+                    ? "Not connected. Offers are only saved on this computer."
+                    : "Not connected. Add NOTION_CLIENT_ID and NOTION_CLIENT_SECRET to .env.local and restart the app."}
+            </p>
+          </div>
+          {!viaToken && oauthConfigured() && (
+            oauth ? (
+              <form action={disconnectNotionAction}><button type="submit" className="secondary">Disconnect</button></form>
+            ) : (
+              <a className="btn" href="/api/notion/connect">Connect Notion</a>
+            )
+          )}
+        </div>
+      </section>
+
       <div className="card table-wrap">
         {offers.length === 0 ? (
           <p className="sub" style={{ margin: 0 }}>No offers yet. Start with <Link href="/offers/new">New offer</Link>.</p>
