@@ -13,8 +13,9 @@ creates the envelope.
    where Kind = Contract and Legal entity and Contract type match, and Active is
    checked. If none exists, tell Jerry in the Slack thread and skip.
 
-4. Copy the template Google Doc into **Offers/{Candidate}** as
-   "Contract - {Candidate}" and replace the `{{field}}` placeholders. Use the confirmed start
+4. Copy the template Google Doc (Template link) into **Offers/{Candidate}** as
+   "Contract - {Candidate}". If there is no Template link, use the .docx in the
+   row's **File** column, converted to a Google Doc, and replace the `{{field}}` placeholders. Use the confirmed start
    date from Candidate Details. Monthly gross is the stored Monthly gross. Don't
    edit, add or remove any clause.
 

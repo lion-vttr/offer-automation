@@ -46,6 +46,7 @@ export default function OfferForm() {
   const router = useRouter();
   const [f, setF] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
+  const [saveError, setSaveError] = useState("");
   const [pending, startTransition] = useTransition();
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -103,9 +104,12 @@ export default function OfferForm() {
         rsu_total: Number(f.rsu_total || 0),
         relocation_amount: f.relocation_amount ? Number(f.relocation_amount) : null,
       });
-      if (!res.ok) return setErrors(res.errors);
-      const q = res.notionError ? `?notionError=${encodeURIComponent(res.notionError.slice(0, 300))}` : "?created=1";
-      router.push(`/offers/${res.id}${q}`);
+      if (!res.ok) {
+        setErrors(res.errors);
+        setSaveError(res.saveError ?? "");
+        return;
+      }
+      router.push(`/offers/${res.id}?created=1`);
     });
   }
 
@@ -252,6 +256,7 @@ export default function OfferForm() {
       <div className="row">
         <button type="submit" disabled={pending}>{pending ? "Submitting…" : "Submit for approval"}</button>
         {Object.keys(errors).length > 0 && <span className="err">Fix the highlighted fields.</span>}
+        {saveError && <span className="err">{saveError}</span>}
       </div>
     </form>
   );

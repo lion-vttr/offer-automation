@@ -14,7 +14,7 @@ export default async function OfferPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; notionError?: string }>;
+  searchParams: Promise<{ created?: string; detailsSaved?: string; error?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -30,12 +30,9 @@ export default async function OfferPage({
 
   return (
     <>
-      {sp.created && (
-        <div className="notice ok">
-          Offer submitted. {offer.notion_url ? "The row is in Notion." : "Saved locally; Notion is not connected yet (see the Offers page)."}
-        </div>
-      )}
-      {sp.notionError && <div className="notice">Saved locally, but writing to Notion failed: {sp.notionError}</div>}
+      {sp.created && <div className="notice ok">Offer submitted. The row is in the Notion Offers database.</div>}
+      {sp.detailsSaved && <div className="notice ok">Contract details saved to the Notion Candidate Details database.</div>}
+      {sp.error && <div className="notice">Couldn&apos;t save to Notion: {sp.error}</div>}
 
       <div className="spread">
         <div>
@@ -81,7 +78,7 @@ export default async function OfferPage({
       <section className="card">
         <h2>3 · Offer letter and email</h2>
         <div className="row" style={{ marginBottom: 12 }}>
-          {letter?.filename ? (
+          {letter?.file ? (
             <a className="btn" href={`/api/offers/${offer.id}/document?kind=offer_letter`}>Download filled offer letter</a>
           ) : (
             <span className="pill muted">No offer letter template yet · <Link href="/templates">add one</Link></span>
@@ -90,9 +87,9 @@ export default async function OfferPage({
         <pre className="preview">{offerEmailBody(offer)}</pre>
       </section>
 
-      <section className="card">
+      <section className="card" id="details">
         <h2>4 · Contract details from the acceptance reply</h2>
-        <p className="sub">The acceptance routine writes these to Candidate Details in Notion. You can also enter them here to fill a contract locally.</p>
+        <p className="sub">Stored in the Notion Candidate Details database (Talent and Legal only). The acceptance routine fills them from the candidate&apos;s reply; you can also enter or correct them here.</p>
         <form action={save}>
           <div className="grid">
             <Field name="legal_first_name" label="Legal first name" value={d?.legal_first_name} />
@@ -123,7 +120,7 @@ export default async function OfferPage({
         <h2>5 · Contract</h2>
         <p className="sub">Fills the {offer.legal_entity} {offer.contract_type.toLowerCase()} template. No clause is edited; any field still empty shows as [[MISSING: …]] in the document.</p>
         <div className="row">
-          {contract?.filename ? (
+          {contract?.file ? (
             <a className="btn" href={`/api/offers/${offer.id}/document?kind=contract`}>Download filled contract</a>
           ) : (
             <span className="pill muted">No contract template yet · <Link href="/templates">add one</Link></span>

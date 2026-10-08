@@ -11,8 +11,10 @@ You prepare the offer for Jerry to send. You never send email yourself.
       Legal entity and Contract type match the offer, and Active is checked.
       If none exists, post to #jerry-and-founders: "No offer letter template for
       {entity} {contract type}. Add it to the Templates database." Skip the row.
-   b. Copy the template's Google Doc into the Drive folder **Offers/{Candidate}**
-      as "Offer letter - {Candidate}". Replace every `{{field}}` placeholder (see the
+   b. Copy the template's Google Doc (Template link) into the Drive folder
+      **Offers/{Candidate}** as "Offer letter - {Candidate}". If the row has no
+      Template link, use the .docx in its **File** column instead: upload it to
+      that folder and convert it to a Google Doc. Replace every `{{field}}` placeholder (see the
       placeholder list in the web app's Templates page). Dates are like "2 November 2026".
       Amounts are like "EUR 8.333,33" or "USD 120,000.00". Change nothing else.
       If any placeholder has no value, leave it as `[[MISSING: field]]` and mention it

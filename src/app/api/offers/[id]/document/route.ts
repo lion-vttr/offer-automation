@@ -1,7 +1,6 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { NextResponse } from "next/server";
-import { TEMPLATE_DIR, getOffer, listTemplates, slotFor, type TemplateKind } from "@/lib/store";
+import { downloadTemplateFile } from "@/lib/notion";
+import { getOffer, listTemplates, slotFor, type TemplateKind } from "@/lib/store";
 import { fillDocx, tokenValues } from "@/lib/templating";
 
 // GET /api/offers/:id/document?kind=offer_letter|contract → filled .docx
@@ -16,11 +15,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const slot = slotFor(kind, offer);
   const entry = (await listTemplates())[slot.key];
-  if (!entry?.filename) {
-    return NextResponse.json({ error: `No template uploaded for "${slot.label}". Add it on the Templates page.` }, { status: 404 });
+  if (!entry?.file) {
+    return NextResponse.json({ error: `No template file in Notion for "${slot.label}". Add it on the Templates page.` }, { status: 404 });
   }
 
-  const template = await fs.readFile(path.join(TEMPLATE_DIR, entry.filename));
+  const template = await downloadTemplateFile(entry.file);
   let result;
   try {
     result = fillDocx(template, tokenValues(offer, entry.md_signatory));

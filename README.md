@@ -12,9 +12,10 @@ https://claude.ai/artifact/UJEQprBSUssZHb11hhCMUG
 | 4 · Acceptance | Claude routine [`routines/4-acceptance.md`](routines/4-acceptance.md): reads the reply, fills Candidate Details |
 | 5 · Contract | Claude routine [`routines/5-contract.md`](routines/5-contract.md): fills the contract; Jerry sends it via DocuSign for now |
 
-The web app can also fill uploaded .docx templates locally (offer letter and
-contract) for any offer, so the documents can be checked before the routines
-are switched on.
+All data lives in Notion: offers, candidate details and templates (including
+the uploaded .docx files). The app keeps nothing on the computer it runs on
+except the Notion connection token in `.data/`. It can also fill the templates
+for any offer, so the documents can be checked before the routines run.
 
 ## Run it
 
@@ -25,22 +26,19 @@ npm run dev                  # http://localhost:3000
 npm test
 ```
 
-Without keys the app uses sample Ashby candidates and saves offers to
-`.data/offers.json`. With keys in `.env.local`:
-
-- `ASHBY_API_KEY`: real candidate search and prefill.
-- `NOTION_TOKEN` + `NOTION_OFFERS_DATABASE_ID`: each submitted offer is also
-  created in the Notion Offers database. Share the "Offer to Contract MVP" page
-  with the integration.
+Notion is required: set `NOTION_CLIENT_ID` and `NOTION_CLIENT_SECRET` in
+`.env.local`, start the app and click **Connect Notion**, selecting the
+"Offer to Contract MVP" page (or set an internal `NOTION_TOKEN` instead). The
+three database IDs are in `.env.example`. Without `ASHBY_API_KEY` the form
+uses sample candidates.
 
 ## Templates
 
-`/templates` has one slot per document × entity × contract type. Each slot takes an
-uploaded .docx (used by the web app, stays on this computer) and a Google Docs
-link (used by the routines), plus the MD signatory for contracts. The link and
-signatory are stored in the Notion Templates database; saving here updates
-Notion, and edits made in Notion show up here. Placeholders are written `{{field}}`; the page lists every field.
-Uploaded files are stored in `templates/` and are not committed.
+`/templates` has one slot per document × entity × contract type. Each slot
+takes a .docx upload (stored in the Templates database's File column), a Google
+Docs link, and the MD signatory for contracts. Everything is saved to the
+Notion Templates row, and edits made in Notion show up here. Placeholders are
+written `{{field}}`; the page lists every field.
 
 ## Notion
 

@@ -1,5 +1,7 @@
 import { removeTemplateAction, saveTemplateAction } from "@/app/actions";
-import { TEMPLATE_SLOTS, loadTemplates } from "@/lib/store";
+import type { NotionTemplate } from "@/lib/notion";
+import { notionConnected } from "@/lib/notion";
+import { TEMPLATE_SLOTS, listTemplates } from "@/lib/store";
 import { TOKENS } from "@/lib/templating";
 
 export const dynamic = "force-dynamic";
@@ -7,22 +9,34 @@ export const dynamic = "force-dynamic";
 export default async function TemplatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; notionError?: string; slot?: string }>;
+  searchParams: Promise<{ saved?: string; removed?: string; error?: string; slot?: string }>;
 }) {
   const sp = await searchParams;
-  const { templates, notionError } = await loadTemplates();
-  const savedLabel = TEMPLATE_SLOTS.find((s) => s.key === sp.slot)?.label;
+  const slotLabel = TEMPLATE_SLOTS.find((s) => s.key === sp.slot)?.label;
+  const connected = await notionConnected();
+  let templates: Record<string, NotionTemplate> = {};
+  let loadError = "";
+  if (connected) {
+    try {
+      templates = await listTemplates();
+    } catch (e) {
+      loadError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   return (
     <>
-      {sp.saved === "notion" && <div className="notice ok">Saved {savedLabel}. The link and signatory are updated in the Notion Templates database.</div>}
-      {sp.saved === "local" && <div className="notice">Saved {savedLabel} on this computer only. Connect Notion on the Offers page to sync it.</div>}
-      {sp.notionError && <div className="notice">Saved on this computer, but updating Notion failed: {sp.notionError}</div>}
-      {notionError && <div className="notice">Couldn&apos;t read the Notion Templates database, showing the local copy: {notionError}</div>}
+      {sp.saved && <div className="notice ok">Saved {slotLabel} to the Notion Templates database.</div>}
+      {sp.removed && <div className="notice ok">Removed the file from {slotLabel} in Notion.</div>}
+      {sp.error && <div className="notice">Couldn&apos;t save {slotLabel} to Notion: {sp.error}</div>}
+      {loadError && <div className="notice">Couldn&apos;t read the Notion Templates database: {loadError}</div>}
+      {!connected && <div className="notice">Connect Notion on the Offers page first. Templates are stored there.</div>}
+
       <h1>Templates</h1>
       <p className="sub">
-        Upload the approved .docx for each slot (stays on this computer, used for the downloads here) and paste its Google Docs link
-        (used by the Claude routines). The link and MD signatory are kept in the Notion Templates database, so edit them here or there. Placeholders use{" "}
-        <code>{"{{field}}"}</code>; the list of fields is at the bottom of the page.
+        Everything here is stored in the Notion Templates database: the uploaded .docx (in its File column), the Google Docs
+        link, and the MD signatory. Edit them here or in Notion. Placeholders use <code>{"{{field}}"}</code>; the list of
+        fields is at the bottom of the page.
       </p>
 
       {TEMPLATE_SLOTS.map((slot) => {
@@ -31,16 +45,16 @@ export default async function TemplatesPage({
           <section className="card" key={slot.key} id={slot.key}>
             <div className="spread" style={{ marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}>{slot.label}</h2>
-              {t?.filename || t?.link ? <span className="pill ok">Ready</span> : <span className="pill muted">Empty</span>}
+              {t?.file || t?.link ? <span className="pill ok">Ready</span> : <span className="pill muted">Empty</span>}
             </div>
             <form action={saveTemplateAction}>
               <input type="hidden" name="key" value={slot.key} />
               <div className="grid">
                 <div>
                   <label htmlFor={`${slot.key}-file`}>
-                    .docx file <span className="hint">{t?.filename ? "· uploaded, choose a file to replace" : ""}</span>
+                    .docx file <span className="hint">{t?.file ? `· ${t.file.name}, choose a file to replace` : ""}</span>
                   </label>
-                  <input id={`${slot.key}-file`} name="file" type="file" accept=".docx" />
+                  <input id={`${slot.key}-file`} name="file" type="file" accept=".docx" disabled={!connected} />
                 </div>
                 <div>
                   <label htmlFor={`${slot.key}-link`}>Google Docs link</label>
@@ -60,8 +74,8 @@ export default async function TemplatesPage({
                 )}
               </div>
               <div className="row" style={{ marginTop: 14 }}>
-                <button type="submit" className="secondary">Save</button>
-                {t?.filename && (
+                <button type="submit" className="secondary" disabled={!connected}>Save</button>
+                {t?.file && (
                   <button type="submit" className="secondary" formAction={removeTemplateAction}>Remove file</button>
                 )}
               </div>

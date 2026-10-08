@@ -93,5 +93,5 @@ export function fillDocx(template: Buffer, values: Record<string, string>): { do
   const data: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(values)) data[k] = v || (OPTIONAL.has(k) ? "" : undefined);
   doc.render(data);
-  return { doc: doc.getZip().generate({ type: "nodebuffer" }) as Buffer, missing: [...missing] };
+  return { doc: doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer, missing: [...missing] };
 }

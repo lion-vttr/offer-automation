@@ -1,22 +1,16 @@
 "use server";
 
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { disconnect as disconnectNotion } from "@/lib/notion";
 import { validate, type CandidateDetails, type Errors, type OfferInput } from "@/lib/offer";
-import {
-  TEMPLATE_DIR,
-  TEMPLATE_SLOTS,
-  createOffer,
-  listTemplates,
-  removeTemplateFile,
-  saveCandidateDetails,
-  saveTemplate,
-} from "@/lib/store";
+import { createOffer, removeTemplateFile, saveCandidateDetails, saveTemplate } from "@/lib/store";
 
-export type CreateOfferResult = { ok: false; errors: Errors } | { ok: true; id: string; notionError: string | null };
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
+
+export type CreateOfferResult =
+  | { ok: false; errors: Errors; saveError?: string }
+  | { ok: true; id: string };
 
 export async function createOfferAction(input: OfferInput): Promise<CreateOfferResult> {
   const clean: OfferInput = {
@@ -29,9 +23,13 @@ export async function createOfferAction(input: OfferInput): Promise<CreateOfferR
   };
   const errors = validate(clean);
   if (Object.keys(errors).length) return { ok: false, errors };
-  const { offer, notionError } = await createOffer(clean);
-  revalidatePath("/");
-  return { ok: true, id: offer.id, notionError };
+  try {
+    const offer = await createOffer(clean);
+    revalidatePath("/");
+    return { ok: true, id: offer.id };
+  } catch (e) {
+    return { ok: false, errors: {}, saveError: `Couldn't save to Notion: ${message(e)}` };
+  }
 }
 
 export async function saveDetailsAction(id: string, formData: FormData) {
@@ -49,46 +47,50 @@ export async function saveDetailsAction(id: string, formData: FormData) {
     right_to_work: get("right_to_work"),
     confirmed_start_date: get("confirmed_start_date"),
   };
-  await saveCandidateDetails(id, details);
+  let result = "detailsSaved=1";
+  try {
+    await saveCandidateDetails(id, details);
+  } catch (e) {
+    result = `error=${encodeURIComponent(message(e))}`;
+  }
   revalidatePath(`/offers/${id}`);
+  redirect(`/offers/${id}?${result}#details`);
 }
 
 export async function saveTemplateAction(formData: FormData) {
   const key = String(formData.get("key"));
-  if (!TEMPLATE_SLOTS.some((s) => s.key === key)) throw new Error("Unknown template slot");
-  const existing = (await listTemplates())[key];
   const file = formData.get("file");
-
-  let filename = existing?.filename ?? null;
-  if (file instanceof File && file.size > 0) {
-    if (!file.name.toLowerCase().endsWith(".docx")) throw new Error("Upload a .docx file");
-    await fs.mkdir(TEMPLATE_DIR, { recursive: true });
-    if (filename) await fs.rm(path.join(TEMPLATE_DIR, filename), { force: true });
-    filename = `${key}.docx`;
-    await fs.writeFile(path.join(TEMPLATE_DIR, filename), Buffer.from(await file.arrayBuffer()));
-  }
-
-  let result: string;
+  let result = "saved=1";
   try {
-    const synced = await saveTemplate({
-      key,
-      filename,
+    let upload: { data: Buffer; name: string } | undefined;
+    if (file instanceof File && file.size > 0) {
+      if (!file.name.toLowerCase().endsWith(".docx")) throw new Error("Upload a .docx file.");
+      if (file.size > 20 * 1024 * 1024) throw new Error("The file is larger than 20 MB, which Notion doesn't accept.");
+      upload = { data: Buffer.from(await file.arrayBuffer()), name: file.name };
+    }
+    await saveTemplate(key, {
       link: String(formData.get("link") ?? "").trim() || null,
       md_signatory: String(formData.get("md_signatory") ?? "").trim(),
       md_signatory_email: String(formData.get("md_signatory_email") ?? "").trim(),
-      updated_at: new Date().toISOString(),
+      file: upload,
     });
-    result = synced ? "saved=notion" : "saved=local";
   } catch (e) {
-    result = `notionError=${encodeURIComponent((e instanceof Error ? e.message : String(e)).slice(0, 300))}`;
+    result = `error=${encodeURIComponent(message(e))}`;
   }
   revalidatePath("/templates");
   redirect(`/templates?${result}&slot=${encodeURIComponent(key)}#${encodeURIComponent(key)}`);
 }
 
 export async function removeTemplateAction(formData: FormData) {
-  await removeTemplateFile(String(formData.get("key")));
+  const key = String(formData.get("key"));
+  let result = "removed=1";
+  try {
+    await removeTemplateFile(key);
+  } catch (e) {
+    result = `error=${encodeURIComponent(message(e))}`;
+  }
   revalidatePath("/templates");
+  redirect(`/templates?${result}&slot=${encodeURIComponent(key)}#${encodeURIComponent(key)}`);
 }
 
 export async function disconnectNotionAction() {
