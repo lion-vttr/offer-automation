@@ -2,7 +2,8 @@
 
 Each file here is the prompt for one scheduled Claude task. They run every
 15 minutes on weekdays, 08:00–19:00 Berlin time, using the Notion, Slack, Gmail
-and Google Drive connectors. Gmail must be connected as **jerry@priorlabs.ai**.
+and Google Drive connectors. Gmail and Slack must be connected as Jerry
+(jerry@priorlabs.ai), so posts and drafts come from him.
 
 | Routine | Picks up rows with | Does | Leaves the row at |
 |---|---|---|---|
